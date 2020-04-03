@@ -4,9 +4,8 @@ from bitstring import BitArray
 
 class Util:
 
-    def __init__(self, banano_mode : bool):
-        self.banano_mode = banano_mode
-        self.raw_per_nano = 10**29 if banano_mode else 10**30
+    def __init__(self):
+        self.raw_per_nano = 10**29
 
     def get_request_ip(self, r : web.Request) -> str:
         host = r.headers.get('X-FORWARDED-FOR',None)
@@ -18,8 +17,8 @@ class Util:
 
     def address_decode(self, address : str) -> str:
         """Given a string containing an XRB/NANO/BAN address, confirm validity and provide resulting hex address"""
-        if (address[:4] == 'xrb_' or address[:5] == 'nano_' and not self.banano_mode) or (address[:4] == 'ban_' and self.banano_mode):
-            account_map = "13456789abcdefghijkmnopqrstuwxyz"  # each index = binary value, account_lookup[0] == '1'
+        if address[:1] == 'S':
+            account_map = "13456789abcdefghijkmnopqrstuwxyzABCDEFGHIJKMNOPQRSTUWXYZ"  # each index = binary value, account_lookup[0] == '1'
             account_lookup = {}
             for i in range(0, 32):  # populate lookup index with prebuilt bitarrays ready to append
                 account_lookup[account_map[i]] = BitArray(uint=i, length=5)
@@ -46,7 +45,7 @@ class Util:
 
     def pubkey(self, address : str) -> str:
         """Account to public key"""
-        account_map = "13456789abcdefghijkmnopqrstuwxyz"
+        account_map = "13456789abcdefghijkmnopqrstuwxyzABCDEFGHIJKMNOPQRSTUWXYZ"
         account_lookup = {}
         for i in range(0,32): #make a lookup table
             account_lookup[account_map[i]] = BitArray(uint=i,length=5)
@@ -59,7 +58,7 @@ class Util:
         return result
 
     def minimalNumber(self, x):
-        strnum = '{0:.2f}'.format(x) if self.banano_mode else '{0:.6f}'.format(x)
+        strnum = '{0:.8f}'.format(x)
         splitstr = strnum.split('.')
         if len(splitstr) == 1:
             return splitstr[0]
@@ -83,9 +82,5 @@ class Util:
         return self.minimalNumber(nano_amt)
 
     def nano_to_raw(self, nano_amt):
-        if not self.banano_mode:
-            expanded = float(nano_amt) * 1000000
-            return int(expanded) * (10 ** 24)
-        else:
-            expanded = float(nano_amt) * 100
-            return int(expanded) * (10 ** 27)
+        expanded = float(nano_amt) * 100
+        return int(expanded) * (10 ** 27)

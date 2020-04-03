@@ -27,10 +27,9 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 # Configuration arguments
 
 parser = argparse.ArgumentParser(description="Natrium/Kalium Wallet Server")
-parser.add_argument('-b', '--banano', action='store_true', help='Run for BANANO (Kalium-mode)', default=False)
 parser.add_argument('--host', type=str, help='Host to listen on (e.g. 127.0.0.1)', default='127.0.0.1')
 parser.add_argument('--path', type=str, help='(Optional) Path to run application on (for unix socket, e.g. /tmp/natriumapp.sock', default=None)
-parser.add_argument('-p', '--port', type=int, help='Port to listen on', default=5076)
+parser.add_argument('-p', '--port', type=int, help='Port to listen on', default=13338)
 parser.add_argument('--redis-host', type=str, help='Redis (e.g. 127.0.0.1)', default='127.0.0.1')
 parser.add_argument('-rp', '--redis-port', type=int, help='Port redis is running on', default=6379)
 parser.add_argument('--log-file', type=str, help='Log file location', default='natriumcast.log')
@@ -47,21 +46,17 @@ try:
         server_desc = f'on {listen_host} port {listen_port}'
     else:
         server_desc = f'on {app_path}'
-    if options.banano:
-        banano_mode = True
-        print(f'Starting KALIUM Server (BANANO) {server_desc}')
-    else:
-        banano_mode = False
-        print(f'Starting NATRIUM Server (NANO) {server_desc}')
+    
+    print(f'Starting NATRIUM Server (XSPC) {server_desc}')
 except Exception:
     parser.print_help()
     sys.exit(0)
 
-price_prefix = 'coingecko:nano' if not banano_mode else 'coingecko:banano'
+price_prefix = 'coingecko:spectresecuritycoin'
 
 # Environment configuration
 
-rpc_url = os.getenv('RPC_URL', 'http://[::1]:7076')
+rpc_url = os.getenv('RPC_URL', 'http://[::1]:13337')
 work_url = os.getenv('WORK_URL', None)
 fcm_api_key = os.getenv('FCM_API_KEY', None)
 fcm_sender_id = os.getenv('FCM_SENDER_ID', None)
@@ -70,8 +65,7 @@ debug_mode = True if int(os.getenv('DEBUG', 1)) != 0 else False
 # Objects
 
 loop = asyncio.get_event_loop()
-rpc = RPC(rpc_url, banano_mode, work_url=work_url, price_prefix=price_prefix)
-util = Util(banano_mode)
+rpc = RPC(rpc_url, work_url=work_url, price_prefix=price_prefix)
 
 # all currency conversions that are available
 currency_list = ["BTC", "ARS", "AUD", "BRL", "CAD", "CHF", "CLP", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "IDR",
@@ -248,11 +242,9 @@ async def handle_user_message(r : web.Request, message : str, ws : web.WebSocket
                         else:
                             # Legacy connections
                             account = account_list[0]
-                        if account.replace("nano_", "xrb_") in account_list:
-                            account_list.remove(account.replace("nano_", "xrb_"))
-                            account = account.replace('xrb_', 'nano_')
-                            account_list.append(account)
-                            await r.app['rdata'].hset(uid, "account", json.dumps(account_list))
+
+                        account_list.append(account)
+                        await r.app['rdata'].hset(uid, "account", json.dumps(account_list))
                         await rpc.rpc_reconnect(ws, r, account)
                         # Store FCM token for this account, for push notifications
                         if 'fcm_token' in request_json:
@@ -275,7 +267,7 @@ async def handle_user_message(r : web.Request, message : str, ws : web.WebSocket
                             currency = request_json['currency']
                         else:
                             currency = 'usd'
-                        await rpc.rpc_subscribe(ws, r, request_json['account'].replace("nano_", "xrb_"), currency)
+                        await rpc.rpc_subscribe(ws, r, request_json['account'], currency)
                         # Store FCM token if available, for push notifications
                         if 'fcm_token' in request_json:
                             await update_fcm_token_for_account(request_json['account'], request_json['fcm_token'], r)
@@ -558,8 +550,6 @@ async def send_prices(app):
             if len(app['clients']):
                 log.server_logger.info('pushing price data to %d connections', len(app['clients']))
                 btc = float(await app['rdata'].hget("prices", f"{price_prefix}-btc"))
-                if banano_mode:
-                    nano = float(await app['rdata'].hget("prices", f"{price_prefix}-nano"))
                 for client, ws in list(app['clients'].items()):
                     try:
                         try:
@@ -573,8 +563,6 @@ async def send_prices(app):
                             "price":str(price),
                             'btc':str(btc)
                         }
-                        if banano_mode:
-                            response['nano'] = str(nano)
                         await ws.send_str(json.dumps(response))
                     except Exception:
                         log.server_logger.exception('error pushing prices for client %s', client)

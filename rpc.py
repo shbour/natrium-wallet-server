@@ -16,11 +16,9 @@ allowed_rpc_actions = ["account_balance", "account_block_count", "account_check"
                        "pending_exists", "price_data", "fcm_update"]
 
 class RPC:
-    def __init__(self, node_url : str, banano_mode : bool, work_url : str = None, price_prefix : str = None):
+    def __init__(self, node_url : str, work_url : str = None, price_prefix : str = None):
         self.node_url = node_url
         self.work_url = work_url
-        self.banano_mode = banano_mode
-        self.util = Util(banano_mode)
         self.price_prefix = price_prefix
 
     async def json_post(self, request_json : dict, timeout : int = 30, is_work : bool = False) -> dict:
